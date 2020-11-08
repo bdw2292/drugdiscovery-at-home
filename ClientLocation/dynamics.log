@@ -1,0 +1,176 @@
+
+     ######################################################################
+   ##########################################################################
+  ###                                                                      ###
+ ###            Tinker  ---  Software Tools for Molecular Design            ###
+ ##                                                                          ##
+ ##                          Version 8.7  June 2019                          ##
+ ##                                                                          ##
+ ##               Copyright (c)  Jay William Ponder  1990-2019               ##
+ ###                           All Rights Reserved                          ###
+  ###                                                                      ###
+   ##########################################################################
+     ######################################################################
+
+
+ Molecular Dynamics Trajectory via Modified Beeman Algorithm
+
+ Average Values for the Last   100 Out of      100 Dynamics Steps
+
+ Simulation Time              0.1000 Picosecond
+ Total Energy              -488.4610 Kcal/mole   (+/-  55.4802)
+ Potential Energy         -1367.7756 Kcal/mole   (+/-  77.5845)
+ Kinetic Energy             879.3146 Kcal/mole   (+/-  63.1399)
+ Temperature                  203.86 Kelvin      (+/-    14.64)
+
+ Instantaneous Values for Frame Saved at       100 Dynamics Steps
+
+ Current Time                 0.1000 Picosecond
+ Current Potential        -1351.6639 Kcal/mole
+ Current Kinetic            960.1696 Kcal/mole
+ Frame Number                      1
+ Coordinate File             initialpdb.arc
+
+ Average Values for the Last   100 Out of      200 Dynamics Steps
+
+ Simulation Time              0.2000 Picosecond
+ Total Energy              -325.2600 Kcal/mole   (+/-  34.2480)
+ Potential Energy         -1312.5640 Kcal/mole   (+/-  23.9339)
+ Kinetic Energy             987.3039 Kcal/mole   (+/-  33.3865)
+ Temperature                  228.90 Kelvin      (+/-     7.74)
+
+ Instantaneous Values for Frame Saved at       200 Dynamics Steps
+
+ Current Time                 0.2000 Picosecond
+ Current Potential        -1301.3943 Kcal/mole
+ Current Kinetic           1038.5283 Kcal/mole
+ Frame Number                      2
+ Coordinate File             initialpdb.arc
+
+ Average Values for the Last   100 Out of      300 Dynamics Steps
+
+ Simulation Time              0.3000 Picosecond
+ Total Energy              -191.5636 Kcal/mole   (+/-  33.7945)
+ Potential Energy         -1257.7362 Kcal/mole   (+/-  28.1312)
+ Kinetic Energy            1066.1726 Kcal/mole   (+/-  25.4119)
+ Temperature                  247.19 Kelvin      (+/-     5.89)
+
+ Instantaneous Values for Frame Saved at       300 Dynamics Steps
+
+ Current Time                 0.3000 Picosecond
+ Current Potential        -1234.0172 Kcal/mole
+ Current Kinetic           1102.9709 Kcal/mole
+ Frame Number                      3
+ Coordinate File             initialpdb.arc
+
+ Average Values for the Last   100 Out of      400 Dynamics Steps
+
+ Simulation Time              0.4000 Picosecond
+ Total Energy              -100.1922 Kcal/mole   (+/-  23.4631)
+ Potential Energy         -1220.6097 Kcal/mole   (+/-  15.1068)
+ Kinetic Energy            1120.4175 Kcal/mole   (+/-  22.0146)
+ Temperature                  259.76 Kelvin      (+/-     5.10)
+
+ Instantaneous Values for Frame Saved at       400 Dynamics Steps
+
+ Current Time                 0.4000 Picosecond
+ Current Potential        -1194.8218 Kcal/mole
+ Current Kinetic           1146.3267 Kcal/mole
+ Frame Number                      4
+ Coordinate File             initialpdb.arc
+
+ Average Values for the Last   100 Out of      500 Dynamics Steps
+
+ Simulation Time              0.5000 Picosecond
+ Total Energy                -8.1268 Kcal/mole   (+/-  29.3472)
+ Potential Energy         -1172.6987 Kcal/mole   (+/-  19.6686)
+ Kinetic Energy            1164.5719 Kcal/mole   (+/-  22.1349)
+ Temperature                  270.00 Kelvin      (+/-     5.13)
+
+ Instantaneous Values for Frame Saved at       500 Dynamics Steps
+
+ Current Time                 0.5000 Picosecond
+ Current Potential        -1158.5521 Kcal/mole
+ Current Kinetic           1194.5142 Kcal/mole
+ Frame Number                      5
+ Coordinate File             initialpdb.arc
+
+ Average Values for the Last   100 Out of      600 Dynamics Steps
+
+ Simulation Time              0.6000 Picosecond
+ Total Energy                70.9093 Kcal/mole   (+/-  17.8071)
+ Potential Energy         -1151.3989 Kcal/mole   (+/-  17.9858)
+ Kinetic Energy            1222.3082 Kcal/mole   (+/-  16.7280)
+ Temperature                  283.39 Kelvin      (+/-     3.88)
+
+ Instantaneous Values for Frame Saved at       600 Dynamics Steps
+
+ Current Time                 0.6000 Picosecond
+ Current Potential        -1160.4676 Kcal/mole
+ Current Kinetic           1246.6024 Kcal/mole
+ Frame Number                      6
+ Coordinate File             initialpdb.arc
+
+ Average Values for the Last   100 Out of      700 Dynamics Steps
+
+ Simulation Time              0.7000 Picosecond
+ Total Energy               109.8453 Kcal/mole   (+/-  11.8721)
+ Potential Energy         -1128.7369 Kcal/mole   (+/-  16.8767)
+ Kinetic Energy            1238.5822 Kcal/mole   (+/-  16.5806)
+ Temperature                  287.16 Kelvin      (+/-     3.84)
+
+ Instantaneous Values for Frame Saved at       700 Dynamics Steps
+
+ Current Time                 0.7000 Picosecond
+ Current Potential        -1119.4378 Kcal/mole
+ Current Kinetic           1234.4493 Kcal/mole
+ Frame Number                      7
+ Coordinate File             initialpdb.arc
+
+ Average Values for the Last   100 Out of      800 Dynamics Steps
+
+ Simulation Time              0.8000 Picosecond
+ Total Energy               134.1596 Kcal/mole   (+/-  14.9190)
+ Potential Energy         -1109.4259 Kcal/mole   (+/-  20.8066)
+ Kinetic Energy            1243.5855 Kcal/mole   (+/-  15.0127)
+ Temperature                  288.32 Kelvin      (+/-     3.48)
+
+ Instantaneous Values for Frame Saved at       800 Dynamics Steps
+
+ Current Time                 0.8000 Picosecond
+ Current Potential        -1096.9761 Kcal/mole
+ Current Kinetic           1254.1488 Kcal/mole
+ Frame Number                      8
+ Coordinate File             initialpdb.arc
+
+ Average Values for the Last   100 Out of      900 Dynamics Steps
+
+ Simulation Time              0.9000 Picosecond
+ Total Energy               171.7263 Kcal/mole   (+/-  13.6051)
+ Potential Energy         -1098.9272 Kcal/mole   (+/-  15.1533)
+ Kinetic Energy            1270.6535 Kcal/mole   (+/-  18.4447)
+ Temperature                  294.59 Kelvin      (+/-     4.28)
+
+ Instantaneous Values for Frame Saved at       900 Dynamics Steps
+
+ Current Time                 0.9000 Picosecond
+ Current Potential        -1093.9219 Kcal/mole
+ Current Kinetic           1296.3163 Kcal/mole
+ Frame Number                      9
+ Coordinate File             initialpdb.arc
+
+ Average Values for the Last   100 Out of     1000 Dynamics Steps
+
+ Simulation Time              1.0000 Picosecond
+ Total Energy               206.3255 Kcal/mole   (+/-   7.0374)
+ Potential Energy         -1080.3449 Kcal/mole   (+/-  21.2071)
+ Kinetic Energy            1286.6704 Kcal/mole   (+/-  20.8733)
+ Temperature                  298.31 Kelvin      (+/-     4.84)
+
+ Instantaneous Values for Frame Saved at      1000 Dynamics Steps
+
+ Current Time                 1.0000 Picosecond
+ Current Potential        -1091.0371 Kcal/mole
+ Current Kinetic           1307.6223 Kcal/mole
+ Frame Number                     10
+ Coordinate File             initialpdb.arc
