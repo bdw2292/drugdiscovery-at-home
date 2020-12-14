@@ -125,9 +125,7 @@ while True:
             else:
                 addresstonumberoftimesconnecting[addr]+=1
             string=conn.recv(1024).decode()
-            print('string',string)
             stringlist=ParseObject(string,normaldelimter)
-            print(stringlist)
             signal=stringlist[0]
             if signal=='INITIALIZE':
                 for jobid,sublist in queue.items():

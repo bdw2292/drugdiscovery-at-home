@@ -15,3 +15,5 @@ jupyter contrib nbextension install --user
 conda install -c conda-forge tqdm --yes
 pip install idle-time
 conda install -c conda-forge pynput --yes
+conda install -c conda-forge selenium --yes
+pip install webdriver-manager

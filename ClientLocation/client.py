@@ -3,6 +3,10 @@ import subprocess
 import time
 import socket
 from tqdm import tqdm
+from selenium import webdriver
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.options import Options
+from idle_time import IdleMonitor
 
 HOST = '127.0.0.1'  # The server's hostname or IP address
 PORT = 65432        # The port used by the server
@@ -11,6 +15,7 @@ commanddelimeter='$'
 inputfilenamedelimiter='&'
 outputfilenamedelimter='^'
 delaytime=.2
+screensleeptime=1
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 outputlogname='dynamics.log'
@@ -78,15 +83,8 @@ def SanitizeElement(element):
     return element
 
 
-
-
-def LaunchJupyterNotebook(notebookpath):
-    subprocess.Popen('jupyter notebook '+notebookpath)
-    return
-
-
-def SendNGLSignal():
-    temp=open('readytoappend.txt','w')
+def SendNGLSignal(filename):
+    temp=open(filename,'w')
     temp.close()
 
 def ReceiveFile(s,delaytime):
@@ -155,6 +153,34 @@ def ConcatenateStrings(stringlist,delimiter):
         masterstring=masterstring[:-1]
     return masterstring
 
+
+def LaunchJupyterNotebook(notebookname):
+    cmd = "jupyter notebook --no-browser --NotebookApp.token='' --NotebookApp.password=''"
+    p=subprocess.Popen(cmd,shell=True,stdout=out,stderr=out)
+    time.sleep(5)
+    nburl='http://localhost:8888/notebooks/'+notebookname
+    return nburl
+
+
+def LaunchControlledChromeBrowser(nburl):
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_experimental_option("useAutomationExtension", False)
+    chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    chrome_options.add_argument('start-maximized')
+    chrome_options.add_argument('disable-infobars')
+    options = Options()
+    options.add_argument("start-maximized")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('useAutomationExtension', False)
+    driver = webdriver.Chrome(ChromeDriverManager().install(),chrome_options=options)
+    driver.get(nburl)
+    main_window = driver.current_window_handle
+    return driver,main_window
+
+def ConvertSecondsToMinutes(currenttime):
+    return currenttime/60
+
+
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     s.connect((HOST, PORT))
     masterstring=ConcatenateStrings(['INITIALIZE'],normaldelimter)
@@ -186,11 +212,10 @@ with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
 
 for i in range(len(commandlist)):
     command=commandlist[i]
-    print('command',command)
     if 'dynamic' in command:
+        monitor = IdleMonitor.get_monitor()
         if os.name == 'nt':
             command=command.replace('dynamic.exe',dynamic_binpath).replace(parameterfilename,parameterfile_path)
-            print('command after',command)
         outputfilename=outputfilenamelist[i]
         p = subprocess.Popen(command, shell=True,stdout=logfilehandle, stderr=logfilehandle)
         count=0
@@ -200,12 +225,31 @@ for i in range(len(commandlist)):
                 print('Waiting for simulation to begin')
             count+=1
 
-        LaunchJupyterNotebook(notebookpath)
+
         xyzfilecount=0
+        launched=False
+        firstlaunch=True
         while p.poll()==None:
             newxyzfilecount=ParseTrajectoryOutput(outputfilename,xyzfilecount)
-            if newxyzfilecount>xyzfilecount and newxyzfilecount!=1:
-                SendNGLSignal()
+            idletime=ConvertSecondsToMinutes(monitor.get_idle_time())
+            launchready=False
+            if newxyzfilecount>=3 and launched==False:
+                if firstlaunch==True:
+                    firstlaunch=False
+                    launchready=True
+                else:
+                    if idletime>=screensleeptime:
+                        launchready=True
+                if launchready==True:
+                    nburl=LaunchJupyterNotebook(notebookname)
+                    driver,main_window=LaunchControlledChromeBrowser(nburl)
+                    launched=True
+
+            if os.path.isfile('killbrowser.txt'):
+                os.remove('killbrowser.txt')
+                driver.quit()
+                launched=False
+
             xyzfilecount=newxyzfilecount
             time.sleep(5)
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
