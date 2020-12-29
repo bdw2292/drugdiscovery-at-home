@@ -14,12 +14,12 @@ inputfilenamedelimiter='&'
 outputfilenamedelimter='^'
 
 xyzfilename='initialpdb.xyz'
-dynamic_steps='1000'
+dynamic_steps='400'
 time_step='1' # fs
 writeout_time='.1' # ps
 ensemble='2'
 temperature='298'
-
+timeallowed=.5 # hours
 
 parameterfilename='amoebabio18.txt'
 outputname=xyzfilename.replace('.xyz','.arc')
@@ -75,13 +75,12 @@ def DynamicCommand(dynamic_binpath,xyzfile_path,parameterfile_path,dynamic_steps
 dynamic_command=DynamicCommand(dynamic_binpath,xyzfile_path,parameterfile_path,dynamic_steps,time_step,writeout_time,ensemble,temperature)
 jobid='random-test'
 password=ReadPassword(secretfile)
-timeallowed=.5 # hours
+
 
 
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     s.connect((HOST, PORT))
     masterstring=ConcatenateStrings(['SUBMIT',password,jobid,str(timeallowed),ConcatenateStrings([dynamic_command],commanddelimeter),ConcatenateStrings([xyzfilename],inputfilenamedelimiter),ConcatenateStrings([outputname],outputfilenamedelimter)],normaldelimter)
-    print('masterstring',masterstring,flush=True)
     s.sendall(masterstring.encode())
     time.sleep(delaytime)
     SendFile(s,xyzfilename,delaytime)

@@ -154,9 +154,9 @@ def ConcatenateStrings(stringlist,delimiter):
     return masterstring
 
 
-def LaunchJupyterNotebook(notebookname):
+def LaunchJupyterNotebook(notebookname,logfilehandle):
     cmd = "jupyter notebook --no-browser --NotebookApp.token='' --NotebookApp.password=''"
-    p=subprocess.Popen(cmd,shell=True,stdout=out,stderr=out)
+    p=subprocess.Popen(cmd,shell=True,stdout=logfilehandle,stderr=logfilehandle)
     time.sleep(5)
     nburl='http://localhost:8888/notebooks/'+notebookname
     return nburl
@@ -180,11 +180,41 @@ def LaunchControlledChromeBrowser(nburl):
 def ConvertSecondsToMinutes(currenttime):
     return currenttime/60
 
+def TerminateTinkerDynamics(xyzfile_path):
+    endpath=xyzfile_path.replace('.xyz','.end')
+    temp=open(endpath,'w')
+    temp.close()
 
+
+def RestartTinkerDynamics(command,frames,newxyzfilecount,logfilehandle,writeout_time):
+    files=os.listdir()
+    for f in files:
+        file_name, file_extension = os.path.splitext(f)
+        if file_extension=='.end':
+            os.remove(endpath)
+    newframes=frames-newxyzfilecount
+    dynamic_time=newframes*writeout_time # in fs
+    dynamic_steps=str(dynamic_time/1) # just remove fs unit
+    commandsplit=command.split()
+    commandsplit[3]=dynamic_steps
+    command=' '.join(commandsplit)
+    p = subprocess.Popen(command, shell=True,stdout=logfilehandle, stderr=logfilehandle)
+    return p
+
+
+def CleanUpTinkerFiles():
+    files=os.listdir()
+    for f in files:
+        file_name, file_extension = os.path.splitext(f)
+        if file_extension=='.arc' or file_extension=='.dyn' or file_extension=='.key' or file_extension=='.xyz':
+            os.remove(f)
+
+
+
+CleanUpTinkerFiles()
 with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
     s.connect((HOST, PORT))
     masterstring=ConcatenateStrings(['INITIALIZE'],normaldelimter)
-    print('masterstring',masterstring)
     s.sendall(masterstring.encode())
     object = s.recv(1024).decode()
     stringlist=ParseObject(object,normaldelimter)
@@ -214,6 +244,14 @@ for i in range(len(commandlist)):
     command=commandlist[i]
     if 'dynamic' in command:
         monitor = IdleMonitor.get_monitor()
+        commandsplit=command.split()
+        xyzfile_path=commandsplit[1]
+        dynamic_steps=int(commandsplit[3])
+        time_step=float(commandsplit[4]) #fs
+        writeout_time=float(commandsplit[5]) # ps
+        writeout_time=writeout_time*1000 #fs
+        dynamic_time=dynamic_steps*time_step
+        frames=round(dynamic_time/writeout_time)
         if os.name == 'nt':
             command=command.replace('dynamic.exe',dynamic_binpath).replace(parameterfilename,parameterfile_path)
         outputfilename=outputfilenamelist[i]
@@ -229,7 +267,7 @@ for i in range(len(commandlist)):
         xyzfilecount=0
         launched=False
         firstlaunch=True
-        while p.poll()==None:
+        while xyzfilecount!=frames:
             newxyzfilecount=ParseTrajectoryOutput(outputfilename,xyzfilecount)
             idletime=ConvertSecondsToMinutes(monitor.get_idle_time())
             launchready=False
@@ -241,17 +279,20 @@ for i in range(len(commandlist)):
                     if idletime>=screensleeptime:
                         launchready=True
                 if launchready==True:
-                    nburl=LaunchJupyterNotebook(notebookname)
+                    nburl=LaunchJupyterNotebook(notebookname,logfilehandle)
                     driver,main_window=LaunchControlledChromeBrowser(nburl)
                     launched=True
+                    if firstlaunch==False: # then need to restart dynamics
+                        p=RestartTinkerDynamics(command,frames,newxyzfilecount,logfilehandle,writeout_time)
 
             if os.path.isfile('killbrowser.txt'):
                 os.remove('killbrowser.txt')
                 driver.quit()
                 launched=False
+                TerminateTinkerDynamics(xyzfile_path)
 
             xyzfilecount=newxyzfilecount
-            time.sleep(5)
+            time.sleep(.5)
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((HOST, PORT))
             masterstring=ConcatenateStrings(['FINALIZE',jobid,ConcatenateStrings([outputfilename],outputfilenamedelimter)],normaldelimter)
