@@ -17,3 +17,4 @@ pip install idle-time
 conda install -c conda-forge pynput --yes
 conda install -c conda-forge selenium --yes
 pip install webdriver-manager
+conda install pyqt --yes
