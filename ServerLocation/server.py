@@ -6,7 +6,7 @@ import time
 import json
 
 class Server():
-    def __init__(self,HOST='127.0.0.1',PORT=65432,delaytime=.2,logname='event.log',secretfile='secret.txt',normaldelimter='%',commanddelimiter='$',inputfilenamedelimiter='&',outputfilenamedelimter='^',addresstonumberoftimesconnectingfilename='addresstonumberoftimesconnecting.txt',addresstonumberoffailedpasswordsfilename='addresstonumberoffailedpasswords.txt',blacklistaddressesfilename='blacklistaddresses.txt',passwordattempts=3,queuefilename='queue.txt',jobsinprogressfilename='jobsinprogress.txt',jobidtostarttimefilename='jobidtostarttime.txt',emailtopasswordfilename='emailtopassword.txt',usernametopasswordfilename='usernametopassword.txt'):
+    def __init__(self,HOST='127.0.0.1',PORT=65432,delaytime=.2,logname='event.log',secretfile='secret.txt',normaldelimter='%',commanddelimiter='$',inputfilenamedelimiter='&',outputfilenamedelimter='^',addresstonumberoftimesconnectingfilename='addresstonumberoftimesconnecting.txt',addresstonumberoffailedpasswordsfilename='addresstonumberoffailedpasswords.txt',blacklistaddressesfilename='blacklistaddresses.txt',passwordattempts=3,queuefilename='queue.txt',jobsinprogressfilename='jobsinprogress.txt',jobidtostarttimefilename='jobidtostarttime.txt',emailtopasswordfilename='emailtopassword.txt',usernametopasswordfilename='usernametopassword.txt',usernametoteamnamefilename='usernametoteamname.txt'):
         self.HOST=HOST
         self.PORT=PORT
         self.delaytime=delaytime
@@ -34,7 +34,8 @@ class Server():
         self.emailtopassword=self.ReadDictionaryFromFileName(self.emailtopasswordfilename)
         self.usernametopasswordfilename=usernametopasswordfilename
         self.usernametopassword=self.ReadDictionaryFromFileName(self.usernametopasswordfilename)
-
+        self.usernametoteamnamefilename=usernametoteamnamefilename
+        self.usernametoteamname=self.ReadDictionaryFromFileName(self.usernametoteamnamefilename)
 
     def ParseObject(self,object,delimter):
         stringlist=object.split(delimter)
@@ -182,6 +183,35 @@ class Server():
         masterstring=self.ConcatenateStrings([accepted,errormsg],self.normaldelimiter)
         conn.sendall(masterstring.encode())
 
+
+    def TeamRegister(self,conn,stringlist):
+        accepted=True
+        check=True
+        errormsg=''
+        username=stringlist[1]
+        teamname=stringlist[2]
+        password=stringlist[3]
+        if username not in self.usernametopassword.keys():
+            accepted=False
+            errormsg='Username does not exist'
+        else:
+            if username in self.usernametoteamname.values():
+                accepted=False
+                errormsg='Username already registered with team'
+
+        if teamname not in self.usernametoteamname.values():
+            check=False
+
+        if accepted==True and check==False:
+            tempusernametoteamname={username:teamname}
+            self.usernametoteamname.update(tempusernametoteamname)
+
+
+        accepted=str(accepted)
+        check=str(check)
+        masterstring=self.ConcatenateStrings([check,accepted,errormsg],self.normaldelimiter)
+        conn.sendall(masterstring.encode())
+
     def Login(self,conn,stringlist):
         accepted=True
         errormsg=''
@@ -207,7 +237,7 @@ class Server():
                 valid=False
         return valid
 
-    def Finalize(self,conn,stringlist):
+    def Finalize(self,conn,stringlist,addr):
         jobid=stringlist[1]
         if jobid not in self.jobsinprogress: # then they didnt finish in time
             self.WriteToLog(self.logh,'Job didnt finish in time cannot accept files, jobid= '+str(jobid)+' '+str(addr))
@@ -216,7 +246,7 @@ class Server():
             os.mkdir(jobid)
         os.chdir(jobid)
         residual=' '.join(stringlist[2:])
-        outputfilenamelist=self.ParseObject(residual,self.outputfilenamedelimter)
+        outputfilenamelist=self.ParseObject(residual,self.outputfilenamedelimiter)
         outputfilenamelist=outputfilenamelist[:-1]
         outputfilenamelist=[item.lstrip().rstrip() for item in outputfilenamelist]
         time.sleep(self.delaytime)
@@ -296,10 +326,12 @@ class Server():
                         self.Initialize(conn,addr)
                     elif signal=='REGISTER':
                         self.Register(conn,stringlist)
+                    elif signal=='TEAMREGISTER':
+                        self.TeamRegister(conn,stringlist)
                     elif signal=='LOGIN':
                         self.Login(conn,stringlist)
                     elif signal=='FINALIZE':
-                        self.Finalize(conn,stringlist)
+                        self.Finalize(conn,stringlist,addr)
                     elif signal=='SUBMIT':
                         self.Submit(conn,stringlist,addr)
                     else:

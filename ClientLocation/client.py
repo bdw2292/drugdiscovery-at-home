@@ -8,7 +8,7 @@ from selenium.webdriver.chrome.options import Options
 from idle_time import IdleMonitor
 from PyQt5 import QtWidgets, QtCore
 import sys
-from datetime import datetime
+from datetime import datetime,timedelta
 from tqdm import tqdm
 from PyQt5.QtCore import QObject, QThread, pyqtSignal
 
@@ -125,8 +125,9 @@ class Client():
             masterstring=self.ConcatenateStrings(['FINALIZE',self.jobid,self.ConcatenateStrings(outputfilenamelist,self.outputfilenamedelimter)],self.normaldelimter)
             s.sendall(masterstring.encode())
             time.sleep(self.delaytime)
-            self.SendFile(s,outputfilename,self.delaytime)
-            os.remove(outputfilename)
+            for outputfilename in outputfilenamelist:
+                self.SendFile(s,outputfilename,self.delaytime)
+                os.remove(outputfilename)
             for filename in inputfilenamelist:
                 os.remove(filename)
 
@@ -146,6 +147,26 @@ class Client():
             errormsg=stringlist[1]
         return accepted,errormsg
 
+    def TeamRegister(self,username,teamname,password):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.connect((self.HOST, self.PORT))
+            masterstring=self.ConcatenateStrings(['TEAMREGISTER',username,teamname,password],self.normaldelimter)
+            s.sendall(masterstring.encode())
+            object = s.recv(1024).decode()
+            stringlist=self.ParseObject(object,self.normaldelimter)
+            check=stringlist[0]
+            if check=='False':
+                check=False
+            elif check=='True':
+                check=True
+            accepted=stringlist[1]
+            if accepted=='False':
+                accepted=False
+            elif accepted=='True':
+                accepted=True
+
+            errormsg=stringlist[2]
+        return check,accepted,errormsg
     def Login(self,username,password):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((self.HOST, self.PORT))
@@ -179,7 +200,13 @@ class Worker(QObject):
     cpupercent=pyqtSignal(int)
     gpupercent=pyqtSignal(int)
     finished = pyqtSignal()
-    def __init__(self,parent=None,screensleeptime=1,BASE_DIR=os.path.dirname(os.path.abspath(__file__)),outputlogname='dynamics.log',notebookname='screensaver.ipynb',parameterfilename='amoebabio18.txt',inputfilename='inputparameters.txt',dynamics_only_while_idle=False,animationframerefreshrate=1,terminatedjob=False,initialframecount=3,pausedynamics=False,status='INACTIVE',username=None,teamname=None,eta=None,cpupercent=0,gpupercent=0,assigned=None,expiration=None,cpudynamics=True,gpudynamics=False,numbercpus=1,numbergpus=1,commandlist=None,outputfilenamelist=None):
+    usercredit=pyqtSignal(float)
+    teamcredit=pyqtSignal(float)
+    usercredibility=pyqtSignal(float)
+    teamcredibility=pyqtSignal(float)
+    userprojectedcredit=pyqtSignal(float)
+    teamprojectedcredit=pyqtSignal(float)
+    def __init__(self,parent=None,screensleeptime=1,BASE_DIR=os.path.dirname(os.path.abspath(__file__)),outputlogname='dynamics.log',notebookname='screensaver.ipynb',parameterfilename='amoebabio18.txt',inputfilename='inputparameters.txt',dynamics_only_while_idle=False,animationframerefreshrate=1,terminatedjob=False,initialframecount=3,pausedynamics=False,status='INACTIVE',username=None,teamname=None,eta=None,cpupercent=0,gpupercent=0,assigned=None,expiration=None,cpudynamics=True,gpudynamics=False,numbercpus=1,numbergpus=1,commandlist=None,outputfilenamelist=None,activecpus=1,activegpus=0,launched=False):
         super(Worker, self).__init__(parent)
         self.outputfilenamelist=outputfilenamelist
         self.commandlist=commandlist
@@ -208,6 +235,9 @@ class Worker(QObject):
         self.numbergpus=numbergpus
         self.cpudynamics=cpudynamics
         self.gpudynamics=gpudynamics
+        self.activecpus=activecpus
+        self.activegpus=activegpus
+        self.launched=launched
 
 
     def ConvertSecondsToMinutes(self,currenttime):
@@ -216,16 +246,6 @@ class Worker(QObject):
     def ConvertSecondsToHours(self,currenttime):
         return currenttime/(60*60)
 
-    def ConvertTimeToBestUnits(self,currenttime):
-        hours=self.ConvertSecondsToHours(currenttime)
-        if hours<1:
-            time=self.ConvertSecondsToMinutes(currenttime)
-            units='minutes'
-        else:
-            time=hours
-            units='hours'
-        string=str(time)+' '+units
-        return string
 
     def WindowsSantizePath(self,path):
         return path.replace('\\','/')
@@ -281,8 +301,6 @@ class Worker(QObject):
         string="Status: %s"%('ACTIVE')
         self.status.emit(string)
         return p
-
-
 
 
 
@@ -370,7 +388,10 @@ class Worker(QObject):
                         start=end
                         remainingframes=self.frames-self.newxyzfilecount
                         eta=self.averagetime*remainingframes
-                        eta=self.ConvertTimeToBestUnits(eta)
+                        dt=timedelta(seconds=eta)
+                        now=datetime.now()
+                        finish=now+dt
+                        eta = finish.strftime("%m/%d/%Y %I:%M:%S %p")
                         string="ETA: %s"%(eta)
                         self.eta.emit(string)
                         progress=(self.newxyzfilecount/self.frames)*100
@@ -404,14 +425,16 @@ class Worker(QObject):
                     time.sleep(.5)
         string="Status: %s"%('FINALIZE')
         self.status.emit(string)
+        self.TerminateScreenSaver()
         self.finished.emit()
 
 
 
 
 class Monitor(QtWidgets.QDialog):
-    def __init__(self, parent=None,username=None,teamname=None,status='',eta='',assigned='',expiration='',numbercpus='',numbergpus='',cpupercent=0,gpupercent=0,cpudynamics=True,gpudynamics=False):
+    def __init__(self, parent=None,username=None,teamname=None,status='',eta='',assigned='',expiration='',numbercpus='',numbergpus='',cpupercent=0,gpupercent=0,cpudynamics=True,gpudynamics=False,worker=None,activecpus=1,activegpus=0,usercredit='',teamcredit='',usercredibility='',teamcredibility='',userprojectedcredit='',teamprojectedcredit='',project=''):
         super(Monitor, self).__init__(parent)
+        self.layout = QtWidgets.QVBoxLayout(self)
         self.buttonpressed=False
         self.username=username
         if teamname==None:
@@ -428,96 +451,154 @@ class Monitor(QtWidgets.QDialog):
         self.gpupercent=gpupercent
         self.cpudynamics=cpudynamics
         self.gpudynamics=gpudynamics
+        self.worker=worker
+        self.activecpus=activecpus
+        self.activegpus=activegpus
+        self.usercredit=usercredit
+        self.teamcredit=teamcredit
+        self.usercredibility=usercredibility
+        self.teamcredibility=teamcredibility
+        self.userprojectedcredit=userprojectedcredit
+        self.teamprojectedcredit=teamprojectedcredit
+        self.project=project
 
 
     def StartMonitor(self):
-        self.usernamelabel = QtWidgets.QLabel("Username:%s"%(self.username))
-        self.usernamelabel.setAlignment(QtCore.Qt.AlignLeft)
+        self.tabs = QtWidgets.QTabWidget()
+        self.tab1 = QtWidgets.QWidget()
+        self.tab2 = QtWidgets.QWidget()
+        self.tabs.addTab(self.tab1,"Job Statistics")
+        self.tabs.addTab(self.tab2,"User-Team Statistics")
+        self.projectlabel = QtWidgets.QLabel("Project:%s"%(self.project))
+        self.projectlabel.setAlignment(QtCore.Qt.AlignLeft)
         self.statuslabel = QtWidgets.QLabel("Status:%s"%(self.status))
         self.statuslabel.setAlignment(QtCore.Qt.AlignRight)
-        self.teamlabel = QtWidgets.QLabel("Teamname:%s"%(self.teamname))
-        self.teamlabel.setAlignment(QtCore.Qt.AlignLeft)
-        self.etalabel = QtWidgets.QLabel("ETA:%s"%(self.eta))
-        self.etalabel.setAlignment(QtCore.Qt.AlignRight)
         self.assignedlabel = QtWidgets.QLabel("Assigned:%s"%(self.assigned))
         self.assignedlabel.setAlignment(QtCore.Qt.AlignLeft)
         self.expirationlabel = QtWidgets.QLabel("Expiration:%s"%(self.expiration))
         self.expirationlabel.setAlignment(QtCore.Qt.AlignRight)
-        verticalLayout = QtWidgets.QVBoxLayout()
-        horizontalLayout1 = QtWidgets.QHBoxLayout()
-        horizontalLayout2 = QtWidgets.QHBoxLayout()
-        horizontalLayout3 = QtWidgets.QHBoxLayout()
-        horizontalLayout4 = QtWidgets.QHBoxLayout()
-        horizontalLayout5 = QtWidgets.QHBoxLayout()
+        self.activecpulabel = QtWidgets.QLabel("Active CPUs: %s"%(self.activecpus))
+        self.activecpulabel.setAlignment(QtCore.Qt.AlignLeft)
+        self.activegpulabel = QtWidgets.QLabel("Active GPUs: %s"%(self.activegpus))
+        self.activegpulabel.setAlignment(QtCore.Qt.AlignRight)
+        self.etalabel = QtWidgets.QLabel("Time to Completion:%s"%(self.eta))
+        self.etalabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.pbar = QtWidgets.QProgressBar(self)
         self.r1=QtWidgets.QRadioButton("While working")
         self.r1.setChecked(True)
         self.r1.toggled.connect(lambda:self.btnstate(self.r1))
         self.r2=QtWidgets.QRadioButton("While idle")
         self.r2.toggled.connect(lambda:self.btnstate(self.r2))
         radiolabel = QtWidgets.QLabel("Only run simulations")
-        self.pbar = QtWidgets.QProgressBar(self)
-        cpulabel = QtWidgets.QLabel("Active CPUs: %s"%(self.numbercpus))
-        gpulabel = QtWidgets.QLabel("Active GPUs: %s"%(self.numbergpus))
         self.buttonStop = QtWidgets.QPushButton('Stop drug discovery', self)
         self.buttonStop.clicked.connect(self.handleStop)
-        horizontalLayout1.addWidget(self.usernamelabel)
-        horizontalLayout1.addStretch()
-        horizontalLayout1.addWidget(self.statuslabel)
-        horizontalLayout2.addWidget(self.teamlabel)
-        horizontalLayout2.addStretch()
-        horizontalLayout2.addWidget(self.etalabel)
-        horizontalLayout3.addWidget(self.assignedlabel)
-        horizontalLayout3.addStretch()
-        horizontalLayout3.addWidget(self.expirationlabel)
-        horizontalLayout4.addWidget(radiolabel)
-        horizontalLayout4.addStretch()
-        horizontalLayout4.addWidget(self.r1)
-        horizontalLayout4.addStretch()
-        horizontalLayout4.addWidget(self.r2)
-        if self.cpudynamics==True:
-            horizontalLayout5.addWidget(cpulabel)
-            self.pbar.setValue(self.cpupercent)
-        elif self.gpudynamics==True:
-            horizontalLayout5.addWidget(gpulabel)
-            self.pbar.setValue(self.gpupercent)
-        horizontalLayout5.addStretch()
-        horizontalLayout5.addWidget(self.pbar)
-        verticalLayout.addLayout(horizontalLayout1)
-        verticalLayout.addStretch()
-        verticalLayout.addLayout(horizontalLayout2)
-        verticalLayout.addStretch()
-        verticalLayout.addLayout(horizontalLayout3)
-        verticalLayout.addStretch()
-        verticalLayout.addLayout(horizontalLayout4)
-        verticalLayout.addStretch()
-        verticalLayout.addLayout(horizontalLayout5)
-        verticalLayout.addStretch()
-        verticalLayout.addWidget(self.buttonStop)
-        self.setLayout(verticalLayout)
+        tab1verticalLayout = QtWidgets.QVBoxLayout()
+        tab1horizontalLayout1 = QtWidgets.QHBoxLayout()
+        tab1horizontalLayout2 = QtWidgets.QHBoxLayout()
+        tab1horizontalLayout3 = QtWidgets.QHBoxLayout()
+        tab1horizontalLayout4 = QtWidgets.QHBoxLayout()
+        tab1horizontalLayout5 = QtWidgets.QHBoxLayout()
+        tab1horizontalLayout1.addWidget(self.projectlabel)
+        tab1horizontalLayout1.addStretch()
+        tab1horizontalLayout1.addWidget(self.statuslabel)
+        tab1horizontalLayout2.addWidget(self.assignedlabel)
+        tab1horizontalLayout2.addStretch()
+        tab1horizontalLayout2.addWidget(self.expirationlabel)
+        tab1horizontalLayout3.addWidget(self.activecpulabel)
+        tab1horizontalLayout3.addStretch()
+        tab1horizontalLayout3.addWidget(self.activegpulabel)
+        tab1horizontalLayout4.addWidget(self.pbar)
+        tab1horizontalLayout5.addWidget(radiolabel)
+        tab1horizontalLayout5.addStretch()
+        tab1horizontalLayout5.addWidget(self.r1)
+        tab1horizontalLayout5.addStretch()
+        tab1horizontalLayout5.addWidget(self.r2)
+        tab1verticalLayout.addLayout(tab1horizontalLayout1)
+        tab1verticalLayout.addStretch()
+        tab1verticalLayout.addLayout(tab1horizontalLayout2)
+        tab1verticalLayout.addStretch()
+        tab1verticalLayout.addLayout(tab1horizontalLayout3)
+        tab1verticalLayout.addStretch()
+        tab1verticalLayout.addWidget(self.etalabel)
+        tab1verticalLayout.addStretch()
+        tab1verticalLayout.addLayout(tab1horizontalLayout4)
+        tab1verticalLayout.addStretch()
+        tab1verticalLayout.addLayout(tab1horizontalLayout5)
+        tab1verticalLayout.addStretch()
+        tab1verticalLayout.addWidget(self.buttonStop)
+        self.tab1.setLayout(tab1verticalLayout)
+        self.usernamelabel = QtWidgets.QLabel("Username:%s"%(self.username))
+        self.usernamelabel.setAlignment(QtCore.Qt.AlignLeft)
+        self.teamlabel = QtWidgets.QLabel("Teamname:%s"%(self.teamname))
+        self.teamlabel.setAlignment(QtCore.Qt.AlignRight)
+        self.usercredibilitylabel = QtWidgets.QLabel("User Credibility:%s"%(self.usercredibility))
+        self.usercredibilitylabel.setAlignment(QtCore.Qt.AlignLeft)
+        self.teamcredibilitylabel = QtWidgets.QLabel("Team Credibility:%s"%(self.teamcredibility))
+        self.teamcredibilitylabel.setAlignment(QtCore.Qt.AlignRight)
+        self.usercreditlabel = QtWidgets.QLabel("User Credit:%s"%(self.usercredit))
+        self.usercreditlabel.setAlignment(QtCore.Qt.AlignLeft)
+        self.teamcreditlabel = QtWidgets.QLabel("Team Credit:%s"%(self.teamcredit))
+        self.teamcreditlabel.setAlignment(QtCore.Qt.AlignRight)
+        self.userprojectedcreditlabel = QtWidgets.QLabel("User Projected Credit:%s"%(self.userprojectedcredit))
+        self.userprojectedcreditlabel.setAlignment(QtCore.Qt.AlignLeft)
+        self.teamprojectedcreditlabel = QtWidgets.QLabel("Team Projected Credit:%s"%(self.teamprojectedcredit))
+        self.teamprojectedcreditlabel.setAlignment(QtCore.Qt.AlignRight)
+        tab2verticalLayout = QtWidgets.QVBoxLayout()
+        tab2horizontalLayout1 = QtWidgets.QHBoxLayout()
+        tab2horizontalLayout2 = QtWidgets.QHBoxLayout()
+        tab2horizontalLayout3 = QtWidgets.QHBoxLayout()
+        tab2horizontalLayout4 = QtWidgets.QHBoxLayout()
+        tab2horizontalLayout1.addWidget(self.usernamelabel)
+        tab2horizontalLayout1.addStretch()
+        tab2horizontalLayout1.addWidget(self.teamlabel)
+        tab2horizontalLayout2.addWidget(self.usercredibilitylabel)
+        tab2horizontalLayout2.addStretch()
+        tab2horizontalLayout2.addWidget(self.teamcredibilitylabel)
+        tab2horizontalLayout3.addWidget(self.usercreditlabel)
+        tab2horizontalLayout3.addStretch()
+        tab2horizontalLayout3.addWidget(self.teamcreditlabel)
+        tab2horizontalLayout4.addWidget(self.userprojectedcreditlabel)
+        tab2horizontalLayout4.addStretch()
+        tab2horizontalLayout4.addWidget(self.teamprojectedcreditlabel)
+        tab2verticalLayout.addLayout(tab2horizontalLayout1)
+        tab2verticalLayout.addStretch()
+        tab2verticalLayout.addLayout(tab2horizontalLayout2)
+        tab2verticalLayout.addStretch()
+        tab2verticalLayout.addLayout(tab2horizontalLayout3)
+        tab2verticalLayout.addStretch()
+        tab2verticalLayout.addLayout(tab2horizontalLayout4)
+        self.tab2.setLayout(tab2verticalLayout)
+        self.layout.addWidget(self.tabs)
+        self.setLayout(self.layout)
         frameGm = self.frameGeometry()
         centerPoint = QtWidgets.QDesktopWidget().availableGeometry().center()
         frameGm.moveCenter(centerPoint)
         self.move(frameGm.topLeft())
-        self.setFixedHeight(1000)
-        self.setFixedWidth(1000)
+        self.tabs.setFixedHeight(1000)
+        self.tabs.setFixedWidth(1000)
         self.setWindowTitle("Monitor")
 
     def btnstate(self,b):
         if b.text() == "While working":
-            pass
+            if self.worker!=None:
+                self.worker.dynamics_only_while_idle=False
+
         elif b.text() == "While idle":
-            pass
+            if self.worker!=None:
+                self.worker.dynamics_only_while_idle=True
 
     def handleStop(self):
         if self.buttonpressed==False:
             self.buttonpressed==True
             self.buttonStop.setText('Resume drug discovery')
-            #self.TerminateTinkerDynamicsAndScreenSaver()
-            #self.pausedynamics=True
+            if self.worker!=None:
+                self.worker.TerminateTinkerDynamicsAndScreenSaver()
+                self.worker.pausedynamics=True
         elif self.buttonpressed==True:
             self.buttonpressed=False
             self.buttonStop.setText('Stop drug discovery')
-            #self.pausedynamics=False
+            if self.worker!=None:
+                self.worker.pausedynamics=False
 
 
 class Login(QtWidgets.QDialog,Client):
@@ -530,12 +611,16 @@ class Login(QtWidgets.QDialog,Client):
         usernamelabel.setAlignment(QtCore.Qt.AlignCenter)
         passwordlabel = QtWidgets.QLabel("Password:")
         passwordlabel.setAlignment(QtCore.Qt.AlignCenter)
-        self.registerlabel = QtWidgets.QLabel("<a href='#'>Register</a>")
-        self.registerlabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.registerlabel = QtWidgets.QLabel("<a href='#'>Register User</a>")
+        self.registerlabel.setAlignment(QtCore.Qt.AlignLeft)
+        self.registerTeamlabel = QtWidgets.QLabel("<a href='#'>Register Team</a>")
+        self.registerTeamlabel.setAlignment(QtCore.Qt.AlignRight)
         self.textPass = QtWidgets.QLineEdit(self)
+        self.textPass.setEchoMode(QtWidgets.QLineEdit.Password)
         verticalLayout = QtWidgets.QVBoxLayout()
         horizontalLayout1 = QtWidgets.QHBoxLayout()
         horizontalLayout2 = QtWidgets.QHBoxLayout()
+        horizontalLayout3 = QtWidgets.QHBoxLayout()
         self.buttonLogin = QtWidgets.QPushButton('Login',self)
         self.buttonLogin.clicked.connect(self.handleLogin)
         horizontalLayout1.addWidget(usernamelabel)
@@ -544,11 +629,14 @@ class Login(QtWidgets.QDialog,Client):
         horizontalLayout2.addWidget(passwordlabel)
         horizontalLayout2.addStretch()
         horizontalLayout2.addWidget(self.textPass)
+        horizontalLayout3.addWidget(self.registerlabel)
+        horizontalLayout3.addStretch()
+        horizontalLayout3.addWidget(self.registerTeamlabel)
         verticalLayout.addLayout(horizontalLayout1)
         verticalLayout.addStretch()
         verticalLayout.addLayout(horizontalLayout2)
         verticalLayout.addStretch()
-        verticalLayout.addWidget(self.registerlabel)
+        verticalLayout.addLayout(horizontalLayout3)
         verticalLayout.addStretch()
         verticalLayout.addWidget(self.buttonLogin)
         self.setLayout(verticalLayout)
@@ -588,13 +676,19 @@ class Register(QtWidgets.QDialog,Client):
         self.textEmail = QtWidgets.QLineEdit(self)
         emaillabel = QtWidgets.QLabel("Email:")
         emaillabel.setAlignment(QtCore.Qt.AlignCenter)
-        passwordlabel = QtWidgets.QLabel("Password:")
-        passwordlabel.setAlignment(QtCore.Qt.AlignCenter)
-        self.textPass = QtWidgets.QLineEdit(self)
+        passwordlabel1 = QtWidgets.QLabel("Password:")
+        passwordlabel1.setAlignment(QtCore.Qt.AlignCenter)
+        self.textPass1 = QtWidgets.QLineEdit(self)
+        self.textPass1.setEchoMode(QtWidgets.QLineEdit.Password)
+        passwordlabel2 = QtWidgets.QLabel("Confirm Password:")
+        passwordlabel2.setAlignment(QtCore.Qt.AlignCenter)
+        self.textPass2 = QtWidgets.QLineEdit(self)
+        self.textPass2.setEchoMode(QtWidgets.QLineEdit.Password)
         verticalLayout = QtWidgets.QVBoxLayout()
         horizontalLayout1 = QtWidgets.QHBoxLayout()
         horizontalLayout2 = QtWidgets.QHBoxLayout()
         horizontalLayout3 = QtWidgets.QHBoxLayout()
+        horizontalLayout4 = QtWidgets.QHBoxLayout()
         self.buttonRegister = QtWidgets.QPushButton('Register', self)
         self.buttonRegister.clicked.connect(self.handleRegister)
         horizontalLayout1.addWidget(usernamelabel)
@@ -603,9 +697,135 @@ class Register(QtWidgets.QDialog,Client):
         horizontalLayout2.addWidget(emaillabel)
         horizontalLayout2.addStretch()
         horizontalLayout2.addWidget(self.textEmail)
-        horizontalLayout3.addWidget(passwordlabel)
+        horizontalLayout3.addWidget(passwordlabel1)
         horizontalLayout3.addStretch()
-        horizontalLayout3.addWidget(self.textPass)
+        horizontalLayout3.addWidget(self.textPass1)
+        horizontalLayout4.addWidget(passwordlabel2)
+        horizontalLayout4.addStretch()
+        horizontalLayout4.addWidget(self.textPass2)
+        verticalLayout.addLayout(horizontalLayout1)
+        verticalLayout.addStretch()
+        verticalLayout.addLayout(horizontalLayout2)
+        verticalLayout.addStretch()
+        verticalLayout.addLayout(horizontalLayout3)
+        verticalLayout.addStretch()
+        verticalLayout.addLayout(horizontalLayout4)
+        verticalLayout.addStretch()
+        verticalLayout.addWidget(self.buttonRegister)
+        self.setLayout(verticalLayout)
+        frameGm = self.frameGeometry()
+        centerPoint = QtWidgets.QDesktopWidget().availableGeometry().center()
+        frameGm.moveCenter(centerPoint)
+        self.move(frameGm.topLeft())
+        self.setFixedHeight(600)
+        self.setFixedWidth(600)
+        self.setWindowTitle("Register")
+
+    def ErrorMessage(self,errormsg):
+        msg = QtWidgets.QMessageBox()
+        msg.setIcon(QtWidgets.QMessageBox.Critical)
+        msg.setText(errormsg)
+        msg.setWindowTitle("Error!")
+        msg.exec_()
+
+    def handleRegister(self): # contact server
+        email=self.textEmail.text()
+        username=self.textName.text()
+        password1=self.textPass1.text()
+        password2=self.textPass2.text()
+        if password1==password2:
+            password=self.textPass1.text()
+            accepted,errormsg=self.Register(email,username,password)
+            if accepted==True:
+                self.accept()
+            else:
+                self.ErrorMessage(errormsg)
+        else:
+            errormsg='Passwords do not match!'
+            self.ErrorMessage(errormsg)
+
+class TeamRegister(QtWidgets.QDialog,Client):
+    def __init__(self, parent=None):
+        super(TeamRegister, self).__init__(parent)
+
+    def StartInitialTeamRegister(self):
+        self.textName = QtWidgets.QLineEdit(self)
+        usernamelabel = QtWidgets.QLabel("Username:")
+        usernamelabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.textTeam = QtWidgets.QLineEdit(self)
+        teamlabel = QtWidgets.QLabel("Teamname:")
+        teamlabel.setAlignment(QtCore.Qt.AlignCenter)
+        passwordlabel1 = QtWidgets.QLabel("Password:")
+        passwordlabel1.setAlignment(QtCore.Qt.AlignCenter)
+        self.textPass1 = QtWidgets.QLineEdit(self)
+        self.textPass1.setEchoMode(QtWidgets.QLineEdit.Password)
+        passwordlabel2 = QtWidgets.QLabel("Confirm Password:")
+        passwordlabel2.setAlignment(QtCore.Qt.AlignCenter)
+        self.textPass2 = QtWidgets.QLineEdit(self)
+        self.textPass2.setEchoMode(QtWidgets.QLineEdit.Password)
+        verticalLayout = QtWidgets.QVBoxLayout()
+        horizontalLayout1 = QtWidgets.QHBoxLayout()
+        horizontalLayout2 = QtWidgets.QHBoxLayout()
+        horizontalLayout3 = QtWidgets.QHBoxLayout()
+        horizontalLayout4 = QtWidgets.QHBoxLayout()
+        self.buttonRegister = QtWidgets.QPushButton('Register Team', self)
+        self.buttonRegister.clicked.connect(self.handleInitialTeamRegister)
+        horizontalLayout1.addWidget(usernamelabel)
+        horizontalLayout1.addStretch()
+        horizontalLayout1.addWidget(self.textName)
+        horizontalLayout2.addWidget(teamlabel)
+        horizontalLayout2.addStretch()
+        horizontalLayout2.addWidget(self.textTeam)
+        horizontalLayout3.addWidget(passwordlabel1)
+        horizontalLayout3.addStretch()
+        horizontalLayout3.addWidget(self.textPass1)
+        horizontalLayout4.addWidget(passwordlabel2)
+        horizontalLayout4.addStretch()
+        horizontalLayout4.addWidget(self.textPass2)
+        verticalLayout.addLayout(horizontalLayout1)
+        verticalLayout.addStretch()
+        verticalLayout.addLayout(horizontalLayout2)
+        verticalLayout.addStretch()
+        verticalLayout.addLayout(horizontalLayout3)
+        verticalLayout.addStretch()
+        verticalLayout.addLayout(horizontalLayout4)
+        verticalLayout.addStretch()
+        verticalLayout.addWidget(self.buttonRegister)
+        self.setLayout(verticalLayout)
+        frameGm = self.frameGeometry()
+        centerPoint = QtWidgets.QDesktopWidget().availableGeometry().center()
+        frameGm.moveCenter(centerPoint)
+        self.move(frameGm.topLeft())
+        self.setFixedHeight(600)
+        self.setFixedWidth(600)
+        self.setWindowTitle("Register")
+
+    def StartTeamRegister(self):
+        self.textName = QtWidgets.QLineEdit(self)
+        usernamelabel = QtWidgets.QLabel("Username:")
+        usernamelabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.textTeam = QtWidgets.QLineEdit(self)
+        teamlabel = QtWidgets.QLabel("Teamname:")
+        teamlabel.setAlignment(QtCore.Qt.AlignCenter)
+        passwordlabel1 = QtWidgets.QLabel("Password:")
+        passwordlabel1.setAlignment(QtCore.Qt.AlignCenter)
+        self.textPass1 = QtWidgets.QLineEdit(self)
+        self.textPass1.setEchoMode(QtWidgets.QLineEdit.Password)
+        verticalLayout = QtWidgets.QVBoxLayout()
+        horizontalLayout1 = QtWidgets.QHBoxLayout()
+        horizontalLayout2 = QtWidgets.QHBoxLayout()
+        horizontalLayout3 = QtWidgets.QHBoxLayout()
+        self.buttonRegister = QtWidgets.QPushButton('Register with Team', self)
+        self.buttonRegister.clicked.connect(self.handleTeamRegister)
+        horizontalLayout1.addWidget(usernamelabel)
+        horizontalLayout1.addStretch()
+        horizontalLayout1.addWidget(self.textName)
+        horizontalLayout2.addWidget(teamlabel)
+        horizontalLayout2.addStretch()
+        horizontalLayout2.addWidget(self.textTeam)
+        horizontalLayout3.addWidget(passwordlabel1)
+        horizontalLayout3.addStretch()
+        horizontalLayout3.addWidget(self.textPass1)
         verticalLayout.addLayout(horizontalLayout1)
         verticalLayout.addStretch()
         verticalLayout.addLayout(horizontalLayout2)
@@ -629,13 +849,32 @@ class Register(QtWidgets.QDialog,Client):
         msg.setWindowTitle("Error!")
         msg.exec_()
 
-    def handleRegister(self): # contact server
-        email=self.textEmail.text()
+    def handleInitialTeamRegister(self): # contact server
         username=self.textName.text()
-        password=self.textPass.text()
-        accepted,errormsg=self.Register(email,username,password)
-        if accepted==True:
+        teamname=self.textTeam.text()
+        password1=self.textPass1.text()
+        password2=self.textPass2.text()
+        if password1==password2:
+            password=self.textPass1.text()
+            check,accepted,errormsg=self.TeamRegister(username,teamname,password)
+            if accepted==True and check==True:
+                self.accept()
+            else:
+                self.ErrorMessage(errormsg)
+        else:
+            errormsg='Passwords do not match!'
+            self.ErrorMessage(errormsg)
+
+    def handleTeamRegister(self): # contact server
+        username=self.textName.text()
+        teamname=self.textTeam.text()
+        password=self.textPass1.text()
+        check,accepted,errormsg=self.TeamRegister(username,teamname,password)
+        if accepted==True and check==True:
             self.accept()
+        elif accepted==True and check==False:
+            self.accept()
+            self.StartInitialTeamRegister()
         else:
             self.ErrorMessage(errormsg)
 
@@ -646,11 +885,16 @@ class MainWindow(QtWidgets.QMainWindow,Client):
         self.client=Client()
         self.login = Login()
         self.register = Register()
+        self.teamregister = TeamRegister()
         self.StartLoginWindow()
 
     def StartRegisterWindow(self):
         self.register.StartRegister()
         self.register.show()
+
+    def StartTeamRegisterWindow(self):
+        self.teamregister.StartTeamRegister()
+        self.teamregister.show()
 
     def StartMonitorWindow(self):
         self.monitor.StartMonitor()
@@ -672,14 +916,14 @@ class MainWindow(QtWidgets.QMainWindow,Client):
 
     def UpdateAssignedExpirationLabels(self):
         now = datetime.now()
-        dt_string = now.strftime("%d/%m/%Y %H:%M:%S")
+        dt_string = now.strftime("%m/%d/%Y %I:%M:%S %p")
         string="Assigned: %s"%(dt_string)
         self.monitor.assignedlabel.setText(string)
         timestamp=time.time()
         timeallowed=3600*self.client.timeallowed
         futuretimestamp=timestamp+timeallowed
         dt_object = datetime.fromtimestamp(futuretimestamp)
-        dt_string = dt_object.strftime("%d/%m/%Y %H:%M:%S")
+        dt_string = dt_object.strftime("%m/%d/%Y %I:%M:%S %p")
         string="Expiration: %s"%(dt_string)
         self.monitor.expirationlabel.setText(string)
 
@@ -689,26 +933,29 @@ class MainWindow(QtWidgets.QMainWindow,Client):
     def StartLoginWindow(self):
         self.login.StartLogin()
         self.login.registerlabel.linkActivated.connect(self.StartRegisterWindow)
+        self.login.registerTeamlabel.linkActivated.connect(self.StartTeamRegisterWindow)
         self.login.show()
         if self.login.exec_() == QtWidgets.QDialog.Accepted:
             self.monitor = Monitor(username=self.login.username)
             self.StartMonitorWindow()
-            self.client.ReceiveJob()
-            self.UpdateAssignedExpirationLabels()
-            self.worker=Worker(commandlist=self.client.commandlist,outputfilenamelist=self.client.outputfilenamelist)
-            self.thread = QThread()
-            self.worker.moveToThread(self.thread)
-            self.thread.started.connect(self.worker.ExecuteCommand)
-            self.worker.finished.connect(self.thread.quit)
-            self.worker.finished.connect(self.worker.deleteLater)
-            self.thread.finished.connect(self.thread.deleteLater)
-            self.thread.finished.connect(self.CompleteJob)
-            self.worker.status.connect(self.reportStatus)
-            self.worker.eta.connect(self.reportETA)
-            self.worker.cpupercent.connect(self.reportCPUPercent)
-            self.worker.gpupercent.connect(self.reportGPUpercent)
-            self.thread.start()
-            sys.exit(app.exec_())
+            while True:
+                self.client.ReceiveJob()
+                self.UpdateAssignedExpirationLabels()
+                self.worker=Worker(commandlist=self.client.commandlist,outputfilenamelist=self.client.outputfilenamelist)
+                self.thread = QThread()
+                self.worker.moveToThread(self.thread)
+                self.thread.started.connect(self.worker.ExecuteCommand)
+                self.worker.finished.connect(self.thread.quit)
+                self.worker.finished.connect(self.worker.deleteLater)
+                self.thread.finished.connect(self.thread.deleteLater)
+                self.thread.finished.connect(self.CompleteJob)
+                self.worker.status.connect(self.reportStatus)
+                self.worker.eta.connect(self.reportETA)
+                self.worker.cpupercent.connect(self.reportCPUPercent)
+                self.worker.gpupercent.connect(self.reportGPUpercent)
+                self.monitor.worker=self.worker
+                self.thread.start()
+                sys.exit(app.exec_())
 
 
 if __name__ == '__main__':
